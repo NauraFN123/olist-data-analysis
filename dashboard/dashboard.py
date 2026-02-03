@@ -10,7 +10,7 @@ st.set_page_config(page_title="E-Commerce Data Analysis Dashboard", layout="wide
 # Fungsi untuk memuat data
 @st.cache_data
 def load_data():
-    df = pd.read_csv("all_data.csv")
+    df = pd.read_csv("dashboard/all_data.csv")
     # Pastikan kolom datetime diubah tipenya
     datetime_columns = ["order_purchase_timestamp", "order_delivered_customer_date"]
     for col in datetime_columns:

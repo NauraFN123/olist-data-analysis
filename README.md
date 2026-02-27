@@ -23,3 +23,7 @@ Pastikan Anda memiliki Python terinstal. Disarankan menggunakan *virtual environ
 conda create --name olist-ds python=3.9
 conda activate olist-ds
 pip install -r requirements.txt# olist-data-analysis
+
+### 2. Menjalankan Program Secara Lokal
+cd dashboard  
+python -m streamlit run dashboard.py

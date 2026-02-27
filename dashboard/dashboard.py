@@ -2,95 +2,86 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
-from babel.numbers import format_currency
 
-# Set konfigurasi halaman
-st.set_page_config(page_title="E-Commerce Data Analysis Dashboard", layout="wide")
+st.set_page_config(page_title="Brazilian E-Commerce Dashboard", layout="wide")
 
-# Fungsi untuk memuat data
 @st.cache_data
 def load_data():
-    df = pd.read_csv("dashboard/all_data.csv")
-    # Pastikan kolom datetime diubah tipenya
-    datetime_columns = ["order_purchase_timestamp", "order_delivered_customer_date"]
-    for col in datetime_columns:
-        df[col] = pd.to_datetime(df[col])
+    df = pd.read_csv("all_data.csv")
+    df["order_purchase_timestamp"] = pd.to_datetime(df["order_purchase_timestamp"])
     return df
 
 all_df = load_data()
 
-# --- SIDEBAR ---
+# Pengaturan sidebar dan filter tanggal
 with st.sidebar:
     st.image("https://github.com/dicodingacademy/assets/raw/main/logo.png")
-    st.title("Projek Analisis Data")
-    st.markdown("### Nama: Naura Fathiahaq Nabila")
-    st.markdown("Dataset: Olist E-Commerce")
-
-# --- HEADER ---
-st.title("🛒 E-Commerce Public Data Analysis Dashboard")
-st.markdown("Dashboard ini menampilkan wawasan utama dari performa penjualan dan kepuasan pelanggan.")
-
-# --- TABS UNTUK RUMUSAN MASALAH ---
-tab1, tab2, tab3 = st.tabs(["Geografi Pelanggan", "Loyalitas Pelanggan", "Analisis Pengiriman"])
-
-# --- TAB 1: GEOGRAFI ---
-with tab1:
-    st.header("📍 Konsentrasi Pelanggan Berdasarkan Wilayah")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        state_df = all_df.groupby("customer_state").customer_id.nunique().reset_index()
-        state_df.columns = ["state", "customer_count"]
-        
-        fig, ax = plt.subplots(figsize=(10, 8))
-        sns.barplot(x="customer_count", y="state", data=state_df.sort_values("customer_count", ascending=False), palette="viridis")
-        ax.set_title("Jumlah Pelanggan per Negara Bagian")
-        st.pyplot(fig)
-
-    with col2:
-        st.write("### Insight Utama")
-        st.write("""
-        - Wilayah **São Paulo (SP)** mendominasi pasar dengan jumlah pelanggan tertinggi.
-        - Konsentrasi pelanggan terbesar berada di wilayah **Tenggara (Southeast)** Brazil.
-        """)
-
-# --- TAB 2: REPEAT ORDER ---
-with tab2:
-    st.header("🔁 Analisis Loyalitas Pelanggan")
+    st.title("Naura's Dashboard")
     
-    user_order_counts = all_df.groupby('customer_unique_id').order_id.nunique().reset_index()
-    one_time = user_order_counts[user_order_counts['order_id'] == 1].shape[0]
-    repeat = user_order_counts[user_order_counts['order_id'] > 1].shape[0]
+    min_date = all_df["order_purchase_timestamp"].min()
+    max_date = all_df["order_purchase_timestamp"].max()
 
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        fig, ax = plt.subplots()
-        ax.pie([one_time, repeat], labels=['Sekali Beli', 'Repeat Order'], autopct='%1.1f%%', colors=['#ff9999','#66b3ff'], startangle=90)
-        ax.axis('equal')
-        st.pyplot(fig)
+    start_date, end_date = st.date_input(
+        label='Pilih Rentang Waktu',
+        min_value=min_date,
+        max_value=max_date,
+        value=[min_date, max_date]
+    )
 
-    with col2:
-        st.metric("Total Unique Customers", f"{user_order_counts.shape[0]:,}")
-        st.metric("Repeat Buyers", f"{repeat:,}")
-        st.write("**Kesimpulan:** Mayoritas pelanggan hanya berbelanja satu kali. Diperlukan strategi retensi yang lebih kuat.")
+# Filter data utama berdasarkan input tanggal
+main_df = all_df[(all_df["order_purchase_timestamp"] >= str(start_date)) & 
+                 (all_df["order_purchase_timestamp"] <= str(end_date))]
 
-# --- TAB 3: PENGIRIMAN VS REVIEW ---
-with tab3:
-    st.header("🚚 Dampak Waktu Pengiriman terhadap Rating")
-    
-    # Menyiapkan data korelasi per state
-    state_perf = all_df.groupby('customer_state').agg({
-        'delivery_time': 'mean',
-        'review_score': 'mean'
-    }).reset_index()
+st.title("Brazilian E-Commerce Analysis Dashboard")
+st.markdown(f"Data periode: **{start_date}** sampai **{end_date}**")
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.regplot(data=state_perf, x='delivery_time', y='review_score', color='red', ax=ax)
-    sns.scatterplot(data=state_perf, x='delivery_time', y='review_score', hue='customer_state', s=100, ax=ax)
-    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+# Analisis sebaran pelanggan per negara bagian
+st.header("Sebaran Pelanggan Terbesar")
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    state_cust = main_df.groupby("customer_state").customer_unique_id.nunique().sort_values(ascending=False).reset_index().head(10)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    sns.barplot(x="customer_unique_id", y="customer_state", data=state_cust, palette="viridis", ax=ax)
+    ax.set_title("10 Negara Bagian dengan Pelanggan Unik Terbanyak")
     st.pyplot(fig)
-    
-    st.info("💡 **Insight:** Garis regresi menunjukkan tren negatif. Semakin lama waktu pengiriman, semakin rendah skor kepuasan pelanggan.")
+
+with col2:
+    st.write("### Insight")
+    top_state = state_cust.iloc[0]
+    st.info(f"Negara bagian {top_state['customer_state']} mendominasi dengan total {top_state['customer_unique_id']:,} pelanggan unik.")
+
+# Analisis tren pesanan tiap kuartal
+st.header("Tren Pesanan per Kuartal")
+main_df['order_quarter'] = main_df['order_purchase_timestamp'].dt.to_period('Q').astype(str)
+quarterly_data = main_df.groupby('order_quarter').order_id.nunique().reset_index()
+
+fig2, ax2 = plt.subplots(figsize=(12, 5))
+sns.lineplot(data=quarterly_data, x='order_quarter', y='order_id', marker='o', linewidth=3, ax=ax2)
+plt.xticks(rotation=45)
+ax2.set_title("Tren Jumlah Pesanan per Kuartal")
+st.pyplot(fig2)
+
+# Bagian Analisis Pengiriman di dashboard.py
+st.header("Bagaimana Pengiriman Mempengaruhi Kepuasan?")
+
+state_perf = main_df.groupby('customer_state').agg({
+    'delivery_time': 'mean',
+    'review_score': 'mean'
+}).reset_index()
+
+col_a, col_b = st.columns([2, 1])
+
+with col_a:
+    fig, ax = plt.subplots(figsize=(10, 6))
+    # Menggunakan Regression Plot untuk menunjukkan korelasi (Bagaimana hubungan keduanya)
+    sns.regplot(data=state_perf, x='delivery_time', y='review_score', color='red', ax=ax)
+    ax.set_title("Hubungan Durasi Pengiriman vs Skor Review")
+    st.pyplot(fig)
+
+with col_b:
+    correlation = state_perf['delivery_time'].corr(state_perf['review_score'])
+    st.metric("Tingkat Korelasi", f"{correlation:.2f}")
+    st.write("Insight: Nilai negatif menunjukkan bahwa durasi pengiriman yang lebih lama berakibat pada penurunan skor kepuasan.")
 
 st.caption('Copyright (C) 2026 - Naura Fathiahaq Nabila')
